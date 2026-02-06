@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>IoTzy - MQTT Real-time</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f4f4f5; }
+        ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+        .fade-enter { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .nav-item.active { background-color: #0f172a; color: #ffffff; }
+        .nav-item.active i { color: #ffffff; }
+        .card-surface { background-color: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); }
+        .muted-ring { box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.2); }
+        .wave-strip {
+            height: 6px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(15,23,42,0.9), rgba(15,23,42,0.2), rgba(15,23,42,0.9));
+            background-size: 200% 100%;
+            animation: waveMove 6s linear infinite;
+        }
+        @keyframes waveMove { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
+        .disabled-card { opacity: 0.5; pointer-events: none; }
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-content { background: #ffffff; border-radius: 24px; padding: 32px; max-width: 520px; width: 90%; animation: fadeIn 0.3s; max-height: 90vh; overflow-y: auto; border: 1px solid #e2e8f0; }
+        .pulse-green { animation: pulse-green 2s infinite; }
+        @keyframes pulse-green { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-white via-zinc-50 to-zinc-100 text-zinc-900 h-screen flex overflow-hidden">
+
+    <aside id="sidebar" class="bg-white w-64 h-full flex flex-col border-r border-zinc-200 fixed md:relative transform -translate-x-full md:translate-x-0 transition-transform duration-300 z-50">
+        <div class="h-20 flex items-center px-8 border-b border-zinc-100">
+            <div class="w-8 h-8 bg-zinc-900 text-white rounded-lg flex items-center justify-center mr-3">
+                <i class="fas fa-bolt text-sm"></i>
+            </div>
+            <h1 class="text-xl font-black tracking-tight">Io<span class="text-zinc-400 font-normal">Tzy</span></h1>
+        </div>
+        <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            <p class="px-4 text-[10px] uppercase tracking-widest text-zinc-400 font-bold mb-2">Main Menu</p>
+            <a href="#" onclick="switchPage('dashboard', this)" class="nav-item active flex items-center px-4 py-3 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                <i class="fas fa-th-large w-6 text-zinc-400"></i> Dashboard
+            </a>
+            <a href="#" onclick="switchPage('devices', this)" class="nav-item flex items-center px-4 py-3 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                <i class="fas fa-layer-group w-6 text-zinc-400"></i> Perangkat
+            </a>
+            <a href="#" onclick="switchPage('sensors', this)" class="nav-item flex items-center px-4 py-3 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                <i class="fas fa-wave-square w-6 text-zinc-400"></i> Sensor
+            </a>
+            <a href="#" onclick="switchPage('automation', this)" class="nav-item flex items-center px-4 py-3 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                <i class="fas fa-robot w-6 text-zinc-400"></i> Automasi
+            </a>
+            <a href="#" onclick="switchPage('camera', this)" class="nav-item flex items-center px-4 py-3 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                <i class="fas fa-video w-6 text-zinc-400"></i> Kamera
+            </a>
+            <a href="#" onclick="switchPage('analytics', this)" class="nav-item flex items-center px-4 py-3 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                <i class="fas fa-chart-pie w-6 text-zinc-400"></i> Log & Analitik
+            </a>
+            <p class="px-4 text-[10px] uppercase tracking-widest text-zinc-400 font-bold mt-6 mb-2">System</p>
+            <a href="#" onclick="switchPage('mqtt', this)" class="nav-item flex items-center px-4 py-3 rounded-xl text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-colors">
+                <i class="fas fa-network-wired w-6 text-zinc-400"></i> MQTT Config
+            </a>
+        </nav>
+        <div class="p-4 border-t border-zinc-100">
+            <div class="flex items-center gap-3">
+                <img src="https://ui-avatars.com/api/?name=Rendy+Aulia+Nur&background=18181b&color=fff" class="w-10 h-10 rounded-full">
+                <div>
+                    <p class="text-sm font-bold">Rendy Aulia Nur</p>
+                    <p id="sidebarStatus" class="text-xs text-zinc-400 flex items-center gap-1 transition-colors">
+                        <span id="sidebarDot" class="w-2 h-2 rounded-full bg-zinc-400"></span>
+                        <span id="sidebarText">Offline</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <div id="overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-black/50 z-40 hidden md:hidden"></div>
+
+    <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+        <header class="h-20 bg-white/90 backdrop-blur-md border-b border-zinc-200 flex items-center justify-between px-6 sticky top-0 z-30 shadow-sm">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleSidebar()" class="md:hidden p-2 text-zinc-600 hover:bg-zinc-100 rounded-lg">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h2 id="pageTitle" class="text-lg font-bold">Overview</h2>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="mqttStatusBadge" class="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100">
+                    <span class="w-2 h-2 rounded-full bg-zinc-400" id="mqttStatusDot"></span>
+                    <span class="text-xs font-bold text-zinc-600" id="mqttStatusText">MQTT: Disconnected</span>
+                </div>
+                <div class="hidden md:flex flex-col text-right mr-2">
+                    <span id="clock" class="text-sm font-bold tabular-nums">12:00:00</span>
+                    <span id="date" class="text-[10px] text-zinc-400 uppercase tracking-widest">Senin, 1 Jan</span>
+                </div>
+                <button class="w-10 h-10 rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200 flex items-center justify-center relative">
+                    <i class="fas fa-bell"></i>
+                    <span class="absolute top-2 right-2 w-2 h-2 bg-black rounded-full border-2 border-white"></span>
+                </button>
+            </div>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-6 scroll-smooth">
+            <!-- Dashboard -->
+            <div id="view-dashboard" class="space-y-6 fade-enter">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                        <p class="text-xs text-zinc-400 uppercase tracking-widest font-bold">Ringkasan</p>
+                        <h3 class="text-lg font-bold">Widget Dashboard</h3>
+                    </div>
+                    <button onclick="openDashboardSettings()" class="inline-flex items-center gap-2 px-4 py-2 text-sm font-bold bg-zinc-900 text-white rounded-lg hover:bg-black transition">
+                        <i class="fas fa-sliders"></i>
+                        Atur Tampilan
+                    </button>
+                </div>
+                <div class="wave-strip"></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="card-surface p-5 rounded-2xl" data-dashboard-widget="temperature">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-xs text-zinc-400 uppercase font-bold tracking-wider">Suhu Ruang</p>
+                                <h3 class="text-2xl font-black mt-1"><span id="tempVal">--</span>°C</h3>
+                                <p id="tempEmpty" class="text-[10px] text-zinc-400 mt-1">Menunggu data sensor...</p>
+                            </div>
+                            <div class="p-2 bg-zinc-900 text-white rounded-lg">
+                                <i class="fas fa-temperature-high"></i>
+                            </div>
+                        </div>
+                        <div class="mt-4 h-1 w-full bg-zinc-200 rounded-full overflow-hidden">
+                            <div id="tempBar" class="h-full bg-zinc-900 w-0 transition-all duration-500"></div>
+                        </div>
+                        <p class="text-[10px] text-zinc-500 mt-2">Last update: <span id="tempLastUpdate">--</span></p>
+                    </div>
+
+                    <div class="card-surface p-5 rounded-2xl" data-dashboard-widget="system">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <p class="text-xs text-zinc-400 uppercase font-bold tracking-wider">Status Sistem</p>
+                                <h3 id="systemStatusText" class="text-2xl font-black mt-1">STANDBY</h3>
+                            </div>
+                            <div id="systemStatusIcon" class="p-2 bg-zinc-900 text-white rounded-lg transition-all duration-300">
+                                <i class="fas fa-wifi"></i>
+                            </div>
+                        </div>
+                        <p id="systemUptime" class="mt-4 text-xs text-zinc-500">Menunggu Koneksi...</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 bg-white rounded-3xl overflow-hidden relative shadow-md aspect-video group" data-dashboard-widget="camera">
+                        <video id="camera" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+                        <div id="camPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 bg-zinc-100">
+                            <i class="fas fa-video-slash text-5xl mb-4"></i>
+                            <p class="text-sm font-mono uppercase tracking-widest">Camera Offline</p>
+                            <p class="text-xs text-zinc-600 mt-2">Nyalakan kamera untuk Online</p>
+                        </div>
+                        <div class="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
+                            <span id="camTag" class="px-3 py-1 bg-black/90 backdrop-blur text-white text-[10px] font-bold rounded uppercase hidden">
+                                <i class="fas fa-circle text-[6px] mr-1 animate-pulse"></i> Live
+                            </span>
+                            <button onclick="toggleCamera()" class="p-2 bg-black/10 hover:bg-black/20 backdrop-blur rounded-lg text-zinc-900 transition-all">
+                                <i class="fas fa-power-off"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-6" data-dashboard-widget="quick-controls">
+                        <div class="card-surface p-6 rounded-3xl h-full flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <h3 class="font-bold text-lg">Kontrol Cepat</h3>
+                                    <button onclick="openQuickControlSettings()" class="text-zinc-400 hover:text-zinc-900 text-sm">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
+                                </div>
+                                <p class="text-xs text-zinc-500 mb-6">Pilih 2 perangkat favorit</p>
+                                <div id="quickControlsContainer" class="space-y-3"></div>
+                            </div>
+                            <div class="mt-6">
+                                <p class="text-xs font-bold text-zinc-400 uppercase mb-2">Penggunaan Daya (Realtime)</p>
+                                <canvas id="powerChart" height="80" class="w-full"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Perangkat -->
+            <div id="view-devices" class="hidden fade-enter">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div class="card-surface p-6 rounded-2xl">
+                        <div class="flex justify-between items-start mb-4">
+                            <i class="fas fa-lightbulb text-2xl text-zinc-900"></i>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="device-lampu-utama" class="sr-only peer" onchange="toggleDeviceState('lampu-utama', this.checked)">
+                                <div class="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                            </label>
+                        </div>
+                        <h3 class="text-lg font-bold">Lampu Utama</h3>
+                        <p class="text-sm text-zinc-500">Ruang Tamu</p>
+                        <div class="mt-3 flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-zinc-300" id="indicator-lampu-utama"></div>
+                            <span class="text-xs text-zinc-400" id="label-lampu-utama">Mati</span>
+                        </div>
+                        <button onclick="openTopicSettings('lampu-utama')" class="mt-3 text-xs text-zinc-700 hover:underline">
+                            <i class="fas fa-cog mr-1"></i>Topic Settings
+                        </button>
+                    </div>
+
+                    <div class="card-surface p-6 rounded-2xl">
+                        <div class="flex justify-between items-start mb-4">
+                            <i class="fas fa-wind text-2xl text-zinc-900"></i>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="device-kipas-ruangan" class="sr-only peer" onchange="toggleDeviceState('kipas-ruangan', this.checked)">
+                                <div class="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                            </label>
+                        </div>
+                        <h3 class="text-lg font-bold">Kipas Ruangan</h3>
+                        <p class="text-sm text-zinc-500">AC Pengganti</p>
+                        <div class="mt-3 flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-zinc-300" id="indicator-kipas-ruangan"></div>
+                            <span class="text-xs text-zinc-400" id="label-kipas-ruangan">Mati</span>
+                        </div>
+                        <button onclick="openTopicSettings('kipas-ruangan')" class="mt-3 text-xs text-zinc-700 hover:underline">
+                            <i class="fas fa-cog mr-1"></i>Topic Settings
+                        </button>
+                    </div>
+
+                    <div class="card-surface p-6 rounded-2xl">
+                        <div class="flex justify-between items-start mb-4">
+                            <i class="fas fa-video text-2xl text-zinc-900"></i>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="device-kamera-" class="sr-only peer" disabled>
+                                <div class="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                            </label>
+                        </div>
+                        <h3 class="text-lg font-bold">Kamera</h3>
+                        <p class="text-sm text-zinc-500">Monitoring Ruangan</p>
+                        <div class="mt-3 flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-zinc-300" id="indicator-kamera-"></div>
+                            <span class="text-xs text-zinc-400" id="label-kamera-">Kontrol di Dashboard</span>
+                        </div>
+                    </div>
+
+                    <div class="card-surface p-6 rounded-2xl">
+                        <div class="flex justify-between items-start mb-4">
+                            <i class="fas fa-door-open text-2xl text-zinc-900"></i>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="device-kunci-pintu" class="sr-only peer" onchange="toggleDeviceState('kunci-pintu', this.checked)">
+                                <div class="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-zinc-900"></div>
+                            </label>
+                        </div>
+                        <h3 class="text-lg font-bold">Smart Lock</h3>
+                        <p class="text-sm text-zinc-500">Pintu Utama</p>
+                        <div class="mt-3 flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-zinc-300" id="indicator-kunci-pintu"></div>
+                            <span class="text-xs text-zinc-400" id="label-kunci-pintu">Terkunci</span>
+                        </div>
+                        <button onclick="openTopicSettings('kunci-pintu')" class="mt-3 text-xs text-zinc-700 hover:underline">
+                            <i class="fas fa-cog mr-1"></i>Topic Settings
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sensors -->
+            <div id="view-sensors" class="hidden fade-enter" data-requires-connection="true">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="card-surface p-6 rounded-2xl">
+                        <p class="text-xs text-zinc-400 uppercase font-bold tracking-wider">Suhu Ruang</p>
+                        <div class="flex items-center justify-between mt-2">
+                            <h3 class="text-3xl font-black"><span id="sensorTempVal">--</span>°C</h3>
+                            <i class="fas fa-temperature-high text-zinc-400"></i>
+                        </div>
+                        <div class="mt-4 h-1 w-full bg-zinc-200 rounded-full overflow-hidden">
+                            <div id="sensorTempBar" class="h-full bg-zinc-900 w-0 transition-all duration-500"></div>
+                        </div>
+                        <p class="text-[10px] text-zinc-500 mt-2">Update: <span id="sensorTempTime">--</span></p>
+                    </div>
+                    <div class="card-surface p-6 rounded-2xl">
+                        <p class="text-xs text-zinc-400 uppercase font-bold tracking-wider">Deteksi Manusia</p>
+                        <div class="flex items-center justify-between mt-2">
+                            <div class="flex items-center gap-2">
+                                <span id="presenceDot" class="w-2 h-2 rounded-full bg-zinc-400"></span>
+                                <span id="presenceStatus" class="text-sm font-bold text-zinc-700">Tidak Terdeteksi</span>
+                            </div>
+                            <i class="fas fa-user-check text-zinc-400"></i>
+                        </div>
+                        <p class="text-[10px] text-zinc-500 mt-4">Update: <span id="presenceTime">--</span></p>
+                    </div>
+                    <div class="card-surface p-6 rounded-2xl">
+                        <p class="text-xs text-zinc-400 uppercase font-bold tracking-wider">Kecerahan Kamera</p>
+                        <div class="flex items-center justify-between mt-2">
+                            <h3 class="text-3xl font-black"><span id="brightnessVal">--</span></h3>
+                            <i class="fas fa-circle-half-stroke text-zinc-400"></i>
+                        </div>
+                        <div class="mt-4 h-1 w-full bg-zinc-200 rounded-full overflow-hidden">
+                            <div id="brightnessBar" class="h-full bg-zinc-900 w-0 transition-all duration-500"></div>
+                        </div>
+                        <p class="text-[10px] text-zinc-500 mt-2">Update: <span id="brightnessTime">--</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Automation -->
+            <div id="view-automation" class="hidden fade-enter" data-requires-connection="true">
+                <div class="max-w-3xl card-surface p-8 rounded-2xl space-y-8">
+                    <div>
+                        <h3 class="text-xl font-bold mb-4">Automasi Utama</h3>
+                        <div class="space-y-6">
+                            <div class="flex items-center justify-between pb-6 border-b border-zinc-200">
+                                <div>
+                                    <h4 class="font-bold text-sm">Lampu Otomatis (Kamera)</h4>
+                                    <p class="text-xs text-zinc-500">Lampu menyala/mati mengikuti kecerahan kamera.</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="autoLamp" checked class="sr-only peer" onchange="toggleAutomation('lamp', this.checked)">
+                                    <div class="w-11 h-6 bg-zinc-200 rounded-full peer-focus:outline-none peer peer-checked:bg-zinc-900 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-zinc-400 mb-1">Threshold ON</label>
+                                    <input type="number" step="0.01" id="lampOnThreshold" value="0.35" class="w-full px-3 py-2 text-sm border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-zinc-400 mb-1">Threshold OFF</label>
+                                    <input type="number" step="0.01" id="lampOffThreshold" value="0.5" class="w-full px-3 py-2 text-sm border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent">
+                                </div>
+                            </div>
+                            <div class="flex items-center justify-between pb-6 border-b border-zinc-200">
+                                <div>
+                                    <h4 class="font-bold text-sm">Automasi Kipas Suhu</h4>
+                                    <p class="text-xs text-zinc-500">Nyalakan kipas otomatis saat suhu terlalu panas.</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="autoFan" checked class="sr-only peer" onchange="toggleAutomation('fan', this.checked)">
+                                    <div class="w-11 h-6 bg-zinc-200 rounded-full peer-focus:outline-none peer peer-checked:bg-zinc-900 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                </label>
+                            </div>
+                            <div class="flex items-center justify-between pb-6 border-b border-zinc-200">
+                                <div>
+                                    <h4 class="font-bold text-sm">Auto-Lock Pintu</h4>
+                                    <p class="text-xs text-zinc-500">Kunci pintu otomatis setelah beberapa detik tidak ada orang.</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="autoLock" checked class="sr-only peer" onchange="toggleAutomation('lock', this.checked)">
+                                    <div class="w-11 h-6 bg-zinc-200 rounded-full peer-focus:outline-none peer peer-checked:bg-zinc-900 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Camera -->
+            <div id="view-camera" class="hidden fade-enter" data-requires-connection="true">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white rounded-3xl overflow-hidden relative shadow-md aspect-video group">
+                        <video id="cameraFocus" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+                        <div id="cameraFocusPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center text-zinc-500 bg-zinc-100">
+                            <i class="fas fa-video-slash text-5xl mb-4"></i>
+                            <p class="text-sm font-mono uppercase tracking-widest">Camera Offline</p>
+                            <p class="text-xs text-zinc-600 mt-2">Aktifkan kamera untuk monitoring</p>
+                        </div>
+                        <div class="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
+                            <span id="cameraFocusTag" class="px-3 py-1 bg-black/90 backdrop-blur text-white text-[10px] font-bold rounded uppercase hidden">
+                                <i class="fas fa-circle text-[6px] mr-1 animate-pulse"></i> Live
+                            </span>
+                            <button onclick="toggleCameraFocus()" class="p-2 bg-black/10 hover:bg-black/20 backdrop-blur rounded-lg text-zinc-900 transition-all">
+                                <i class="fas fa-power-off"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="space-y-6">
+                        <div class="card-surface p-6 rounded-3xl">
+                            <h3 class="font-bold text-lg mb-4">Status Kamera</h3>
+                            <div class="space-y-3 text-sm text-zinc-600">
+                                <div class="flex items-center justify-between">
+                                    <span>Deteksi Manusia</span>
+                                    <span id="cameraPresence" class="font-bold text-zinc-900">--</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>Kecerahan</span>
+                                    <span id="cameraBrightness" class="font-bold text-zinc-900">--</span>
+                                </div>
+                                <div class="flex items-center justify-between">
+                                    <span>Update</span>
+                                    <span id="cameraUpdate" class="font-bold text-zinc-900">--</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card-surface p-6 rounded-3xl">
+                            <h3 class="font-bold text-lg mb-4">Tips</h3>
+                            <p class="text-xs text-zinc-500">Pastikan backend Python berjalan untuk deteksi manusia dan automasi lampu berbasis kamera.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics / Logs -->
+            <div id="view-analytics" class="hidden fade-enter" data-requires-connection="true">
+                <div class="card-surface rounded-2xl overflow-hidden">
+                    <div class="p-6 border-b border-zinc-800 flex justify-between items-center">
+                        <h3 class="font-bold text-lg">Activity Logs</h3>
+                        <div class="flex gap-4">
+                            <button onclick="exportLogsToExcel()" class="text-xs text-zinc-700 hover:text-zinc-900 font-bold uppercase">Ekspor ke Excel</button>
+                            <button onclick="clearLogs()" class="text-xs text-zinc-500 hover:text-zinc-900 font-bold uppercase">Clear History</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="text-xs text-zinc-500 uppercase bg-zinc-100">
+                                <tr>
+                                    <th class="px-6 py-4">Tanggal</th>
+                                    <th class="px-6 py-4">Waktu</th>
+                                    <th class="px-6 py-4">Perangkat/Fitur</th>
+                                    <th class="px-6 py-4">Aktivitas</th>
+                                    <th class="px-6 py-4">Trigger</th>
+                                </tr>
+                            </thead>
+                            <tbody id="logBody" class="divide-y divide-zinc-200"></tbody>
+                        </table>
+                        <div id="emptyLog" class="hidden p-8 text-center text-zinc-400">
+                            <p>Belum ada aktivitas tercatat.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MQTT Config -->
+            <div id="view-mqtt" class="hidden fade-enter">
+                <div class="max-w-3xl mx-auto space-y-6">
+                    <div class="card-surface p-8 rounded-2xl">
+                        <h3 class="text-xl font-bold mb-6 flex items-center gap-3">
+                            <i class="fas fa-network-wired text-zinc-700"></i>
+                            Konfigurasi MQTT Broker
+                        </h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-bold text-zinc-700 mb-2">Broker URL (WebSocket)</label>
+                                <input type="text" id="mqttBroker" value="broker.hivemq.com" class="w-full px-4 py-3 border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent" placeholder="broker.hivemq.com">
+                                <p class="text-xs text-zinc-500 mt-1">Contoh: broker.hivemq.com, test.mosquitto.org</p>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm font-bold text-zinc-700 mb-2">Port</label>
+                                    <input type="number" id="mqttPort" value="8884" class="w-full px-4 py-3 border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-zinc-700 mb-2">Client ID</label>
+                                    <input type="text" id="mqttClientId" value="iotzy_web_001" class="w-full px-4 py-3 border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-zinc-700 mb-2">Path</label>
+                                    <input type="text" id="mqttPath" value="/mqtt" class="w-full px-4 py-3 border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent">
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <label class="text-sm font-bold text-zinc-700">Use SSL (wss)</label>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="mqttUseSSL" class="sr-only peer" checked>
+                                    <div class="w-11 h-6 bg-zinc-200 rounded-full peer-focus:outline-none peer peer-checked:bg-zinc-900 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                </label>
+                                <span class="text-xs text-zinc-500">Disarankan untuk broker publik</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-bold text-zinc-700 mb-2">Username (Opsional)</label>
+                                    <input type="text" id="mqttUsername" class="w-full px-4 py-3 border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-zinc-700 mb-2">Password (Opsional)</label>
+                                    <input type="password" id="mqttPassword" class="w-full px-4 py-3 border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent">
+                                </div>
+                            </div>
+                            <div class="flex gap-3 pt-4">
+                                <button onclick="connectMQTT()" id="btnConnect" class="flex-1 px-6 py-3 bg-zinc-900 text-white font-bold rounded-lg hover:bg-black transition-colors">
+                                    <i class="fas fa-plug mr-2"></i>Connect
+                                </button>
+                                <button onclick="disconnectMQTT()" id="btnDisconnect" class="flex-1 px-6 py-3 bg-zinc-200 text-zinc-700 font-bold rounded-lg hover:bg-zinc-300 transition-colors" disabled>
+                                    <i class="fas fa-times mr-2"></i>Disconnect
+                                </button>
+                            </div>
+                            <p id="mqttError" class="text-xs text-red-600 hidden"></p>
+                        </div>
+                    </div>
+
+                    <div class="card-surface p-8 rounded-2xl">
+                        <h3 class="text-lg font-bold mb-4">Topic Sensor (Subscribe)</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-bold text-zinc-500 mb-1">Suhu (Temperature)</label>
+                                <input type="text" id="topicTemp" value="iotzy/sensor/temperature" class="w-full px-3 py-2 text-sm border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-zinc-500 mb-1">Kecerahan Kamera (Brightness)</label>
+                                <input type="text" id="topicBrightness" value="iotzy/sensor/brightness" class="w-full px-3 py-2 text-sm border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-zinc-500 mb-1">Kehadiran (Presence/PIR)</label>
+                                <input type="text" id="topicPresence" value="iotzy/sensor/presence" class="w-full px-3 py-2 text-sm border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent">
+                            </div>
+                        </div>
+                        <button onclick="saveTopicSettings()" class="mt-4 px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-lg hover:bg-black">
+                            Simpan & Subscribe Ulang
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal Dashboard Settings -->
+    <div id="dashboardSettingsModal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Atur Widget Dashboard</h3>
+                <button onclick="closeDashboardSettings()" class="text-zinc-400 hover:text-zinc-900">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <p class="text-sm text-zinc-500 mb-6">Pilih widget yang ingin ditampilkan di dashboard.</p>
+            <div class="space-y-3">
+                <label class="flex items-center p-4 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-50">
+                    <input type="checkbox" value="temperature" class="dashboard-widget-checkbox mr-4">
+                    <i class="fas fa-temperature-high text-xl mr-3 text-zinc-600"></i>
+                    <span class="font-medium">Suhu Ruang</span>
+                </label>
+                <label class="flex items-center p-4 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-50">
+                    <input type="checkbox" value="system" class="dashboard-widget-checkbox mr-4">
+                    <i class="fas fa-wifi text-xl mr-3 text-zinc-600"></i>
+                    <span class="font-medium">Status Sistem</span>
+                </label>
+                <label class="flex items-center p-4 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-50">
+                    <input type="checkbox" value="camera" class="dashboard-widget-checkbox mr-4">
+                    <i class="fas fa-video text-xl mr-3 text-zinc-600"></i>
+                    <span class="font-medium">Kamera</span>
+                </label>
+                <label class="flex items-center p-4 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-50">
+                    <input type="checkbox" value="quick-controls" class="dashboard-widget-checkbox mr-4">
+                    <i class="fas fa-toggle-on text-xl mr-3 text-zinc-600"></i>
+                    <span class="font-medium">Kontrol Cepat</span>
+                </label>
+            </div>
+            <div class="mt-6 flex gap-3">
+                <button onclick="closeDashboardSettings()" class="flex-1 px-4 py-2 border border-zinc-200 text-zinc-600 text-sm font-bold rounded-lg hover:bg-zinc-50">Batal</button>
+                <button onclick="saveDashboardSettings()" class="flex-1 px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-lg hover:bg-black">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Quick Control -->
+    <div id="quickControlModal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">Pilih Kontrol Cepat</h3>
+                <button onclick="closeQuickControlSettings()" class="text-zinc-400 hover:text-zinc-900">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <p class="text-sm text-zinc-500 mb-6">Pilih 2 perangkat yang ingin ditampilkan di dashboard</p>
+            <div class="space-y-3">
+                <label class="flex items-center p-4 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-50">
+                    <input type="checkbox" value="lampu-utama" class="quick-control-checkbox mr-4" onchange="updateQuickControlSelection()">
+                    <i class="fas fa-lightbulb text-xl mr-3 text-zinc-600"></i>
+                    <span class="font-medium">Lampu Utama</span>
+                </label>
+                <label class="flex items-center p-4 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-50">
+                    <input type="checkbox" value="kipas-ruangan" class="quick-control-checkbox mr-4" onchange="updateQuickControlSelection()">
+                    <i class="fas fa-wind text-xl mr-3 text-zinc-600"></i>
+                    <span class="font-medium">Kipas Ruangan</span>
+                </label>
+                <label class="flex items-center p-4 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-50">
+                    <input type="checkbox" value="kamera-" class="quick-control-checkbox mr-4" onchange="updateQuickControlSelection()">
+                    <i class="fas fa-video text-xl mr-3 text-zinc-600"></i>
+                    <span class="font-medium">Kamera</span>
+                </label>
+                <label class="flex items-center p-4 border border-zinc-200 rounded-xl cursor-pointer hover:bg-zinc-50">
+                    <input type="checkbox" value="kunci-pintu" class="quick-control-checkbox mr-4" onchange="updateQuickControlSelection()">
+                    <i class="fas fa-door-open text-xl mr-3 text-zinc-600"></i>
+                    <span class="font-medium">Smart Lock</span>
+                </label>
+            </div>
+            <div class="mt-6 flex gap-3">
+                <button onclick="closeQuickControlSettings()" class="flex-1 px-4 py-2 border border-zinc-200 text-zinc-600 text-sm font-bold rounded-lg hover:bg-zinc-50">Batal</button>
+                <button onclick="saveQuickControlSettings()" class="flex-1 px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-lg hover:bg-black">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Topic Settings -->
+    <div id="topicModal" class="modal">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold">MQTT Topic Settings</h3>
+                <button onclick="closeTopicSettings()" class="text-zinc-400 hover:text-zinc-900">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold text-zinc-600 mb-2">Device: <span id="topicDeviceName" class="text-zinc-900"></span></label>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-zinc-600 mb-2">Subscribe Topic (Status dari device)</label>
+                    <input type="text" id="deviceTopicSub" class="w-full px-4 py-3 border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent" placeholder="iotzy/device/status">
+                    <p class="text-xs text-zinc-500 mt-1">Payload: {"state": 1} atau {"state": 0}</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-zinc-600 mb-2">Publish Topic (Kontrol ke device)</label>
+                    <input type="text" id="deviceTopicPub" class="w-full px-4 py-3 border border-zinc-200 bg-white rounded-lg focus:ring-2 focus:ring-zinc-900/20 focus:border-transparent" placeholder="iotzy/device/control">
+                    <p class="text-xs text-zinc-500 mt-1">Akan kirim payload: {"state": 1} atau {"state": 0}</p>
+                </div>
+            </div>
+            <div class="mt-6 flex gap-3">
+                <button onclick="closeTopicSettings()" class="flex-1 px-4 py-2 border border-zinc-200 text-zinc-600 text-sm font-bold rounded-lg hover:bg-zinc-50">Batal</button>
+                <button onclick="saveDeviceTopicSettings()" class="flex-1 px-4 py-2 bg-zinc-900 text-white text-sm font-bold rounded-lg hover:bg-black">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+// ==================== KONFIGURASI ====================
+const deviceConfig = {
+    'lampu-utama':   { name: 'Lampu Utama',   icon: 'fa-lightbulb', activeColor: 'yellow' },
+    'kipas-ruangan': { name: 'Kipas Ruangan', icon: 'fa-wind',     activeColor: 'blue'   },
+    'kamera-':       { name: 'Kamera',        icon: 'fa-video',     activeColor: 'red'    },
+    'kunci-pintu':   { name: 'Smart Lock',    icon: 'fa-door-open', activeColor: 'green'  }
+};
+
+let deviceStates = {
+    'lampu-utama': false,
+    'kipas-ruangan': false,
+    'kamera-': false,
+    'kunci-pintu': false
+};
+
+let deviceTopics = {
+    'lampu-utama':   { sub: 'iotzy/device/lamp/status',   pub: 'iotzy/device/lamp/control' },
+    'kipas-ruangan': { sub: 'iotzy/device/fan/status',    pub: 'iotzy/device/fan/control' },
+    'kunci-pintu':   { sub: 'iotzy/device/lock/status',   pub: 'iotzy/device/lock/control' }
+};
+
+let automationStates = {
+    lamp: true,
+    fan: true,
+    lock: true
+};
+
+let quickControlDevices = ['lampu-utama', 'kipas-ruangan'];
+
+let environmentData = {
+    temperature: null,
+    presence: false,
+    brightness: null
+};
+
+let lastLampAction = 'off';
+
+let logData = [];
+
+// ==================== MQTT ====================
+let mqttClient = null;
+let mqttConnected = false;
+let currentTopicDevice = null;
+
+function updateMQTTStatus(connected) {
+    mqttConnected = connected;
+    const dot = document.getElementById('mqttStatusDot');
+    const text = document.getElementById('mqttStatusText');
+    const btnConnect = document.getElementById('btnConnect');
+    const btnDisconnect = document.getElementById('btnDisconnect');
+
+    if (connected) {
+        dot.className = 'w-2 h-2 rounded-full bg-zinc-900 pulse-green';
+        text.innerText = 'MQTT: Connected';
+        text.className = 'text-xs font-bold text-zinc-900';
+        btnConnect.disabled = true;
+        btnDisconnect.disabled = false;
+        updateOnlineStatus(true);
+    } else {
+        dot.className = 'w-2 h-2 rounded-full bg-zinc-400';
+        text.innerText = 'MQTT: Disconnected';
+        text.className = 'text-xs font-bold text-zinc-500';
+        btnConnect.disabled = false;
+        btnDisconnect.disabled = true;
+        updateOnlineStatus(false);
+    }
+    updateConnectionUI();
+}
+
+function connectMQTT() {
+    const broker = document.getElementById('mqttBroker').value;
+    const port = parseInt(document.getElementById('mqttPort').value);
+    const clientId = document.getElementById('mqttClientId').value;
+    const path = document.getElementById('mqttPath').value || '/mqtt';
+    const useSSL = document.getElementById('mqttUseSSL').checked;
+    const username = document.getElementById('mqttUsername').value;
+    const password = document.getElementById('mqttPassword').value;
+    const errorEl = document.getElementById('mqttError');
+
+    errorEl.classList.add('hidden');
+    errorEl.innerText = '';
+
+    try {
+        mqttClient = new Paho.MQTT.Client(broker, port, path, clientId);
+
+        mqttClient.onConnectionLost = (response) => {
+            console.error("MQTT Connection Lost:", response.errorMessage);
+            updateMQTTStatus(false);
+            addLog('MQTT', 'Connection Lost', 'System', 'text-red-600');
+        };
+
+        mqttClient.onMessageArrived = (message) => {
+            handleMQTTMessage(message.destinationName, message.payloadString);
+        };
+
+        const options = {
+            onSuccess: () => {
+                console.log("MQTT Connected!");
+                updateMQTTStatus(true);
+                addLog('MQTT', 'Connected to Broker', 'System', 'text-green-600');
+                subscribeToTopics();
+            },
+            onFailure: (error) => {
+                console.error("MQTT Connection Failed:", error);
+                errorEl.innerText = 'Gagal koneksi ke MQTT Broker. Periksa host, port, path, dan SSL.';
+                errorEl.classList.remove('hidden');
+                updateMQTTStatus(false);
+            }
+        };
+
+        if (username) options.userName = username;
+        if (password) options.password = password;
+        options.useSSL = useSSL;
+
+        mqttClient.connect(options);
+    } catch (error) {
+        console.error("MQTT Error:", error);
+        alert("Error: " + error.message);
+    }
+}
+
+function disconnectMQTT() {
+    if (mqttClient && mqttConnected) {
+        mqttClient.disconnect();
+        updateMQTTStatus(false);
+        addLog('MQTT', 'Disconnected', 'User', 'text-zinc-600');
+    }
+}
+
+function subscribeToTopics() {
+    if (!mqttClient || !mqttConnected) return;
+
+    // Subscribe sensor topics
+    const topicTemp = document.getElementById('topicTemp').value;
+    const topicBrightness = document.getElementById('topicBrightness').value;
+    const topicPresence = document.getElementById('topicPresence').value;
+
+    mqttClient.subscribe(topicTemp);
+    mqttClient.subscribe(topicBrightness);
+    mqttClient.subscribe(topicPresence);
+
+    // Subscribe device status topics
+    Object.values(deviceTopics).forEach(topics => {
+        if (topics.sub) {
+            mqttClient.subscribe(topics.sub);
+        }
+    });
+
+    addLog('MQTT', 'Subscribed to all topics', 'System', 'text-blue-600');
+}
+
+function handleMQTTMessage(topic, payload) {
+    console.log("MQTT Message:", topic, payload);
+
+    const topicTemp = document.getElementById('topicTemp').value;
+    const topicBrightness = document.getElementById('topicBrightness').value;
+    const topicPresence = document.getElementById('topicPresence').value;
+
+    try {
+        // Handle sensor data
+        if (topic === topicTemp) {
+            const data = JSON.parse(payload);
+            environmentData.temperature = parseFloat(data.value || data.temperature || data.temp);
+            updateTemperatureUI();
+        }
+        else if (topic === topicBrightness) {
+            const data = JSON.parse(payload);
+            environmentData.brightness = parseFloat(data.value || data.brightness || data.lux);
+            updateBrightnessUI();
+        }
+        else if (topic === topicPresence) {
+            const data = JSON.parse(payload);
+            environmentData.presence = !!(data.value || data.presence || data.detected);
+            updatePresenceUI();
+        }
+        else {
+            // Handle device status
+            for (let deviceId in deviceTopics) {
+                if (deviceTopics[deviceId].sub === topic) {
+                    const data = JSON.parse(payload);
+                    const state = !!(data.state || data.status || data.value);
+                    deviceStates[deviceId] = state;
+                    document.getElementById(`device-${deviceId}`).checked = state;
+                    updateDeviceUI(deviceId);
+                    addLog(deviceConfig[deviceId].name, state ? 'ON (via MQTT)' : 'OFF (via MQTT)', 'MQTT', state ? 'text-green-600' : 'text-zinc-500');
+                    break;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error parsing MQTT message:", e);
+    }
+
+    // Run automations after receiving sensor data
+    checkAutomations();
+}
+
+function publishMQTT(topic, payload) {
+    if (!mqttClient || !mqttConnected) {
+        console.warn("MQTT not connected. Cannot publish.");
+        return;
+    }
+
+    const message = new Paho.MQTT.Message(JSON.stringify(payload));
+    message.destinationName = topic;
+    mqttClient.send(message);
+    console.log("MQTT Published:", topic, payload);
+}
+
+function saveTopicSettings() {
+    if (mqttClient && mqttConnected) {
+        // Unsubscribe old topics (optional, biasanya tidak perlu)
+        subscribeToTopics();
+        addLog('MQTT', 'Topic settings updated', 'User', 'text-blue-600');
+    }
+    alert('Topic settings disimpan!');
+}
+
+// ==================== UPDATE UI SENSOR ====================
+function updateTemperatureUI() {
+    const temp = environmentData.temperature;
+    if (temp === null) return;
+
+    document.getElementById('tempVal').innerText = temp.toFixed(1);
+    document.getElementById('sensorTempVal').innerText = temp.toFixed(1);
+    document.getElementById('tempEmpty').classList.add('hidden');
+    const percentage = Math.min(100, Math.max(0, ((temp - 20) / 15) * 100)); // 20-35°C range
+    document.getElementById('tempBar').style.width = percentage + '%';
+    document.getElementById('sensorTempBar').style.width = percentage + '%';
+    document.getElementById('tempLastUpdate').innerText = new Date().toLocaleTimeString('id-ID');
+    document.getElementById('sensorTempTime').innerText = new Date().toLocaleTimeString('id-ID');
+}
+
+function updateBrightnessUI() {
+    const brightness = environmentData.brightness;
+    if (brightness === null) return;
+
+    const percentage = Math.min(100, Math.max(0, brightness * 100));
+    document.getElementById('brightnessVal').innerText = (brightness * 100).toFixed(0) + '%';
+    document.getElementById('brightnessBar').style.width = percentage + '%';
+    document.getElementById('brightnessTime').innerText = new Date().toLocaleTimeString('id-ID');
+    document.getElementById('cameraBrightness').innerText = (brightness * 100).toFixed(0) + '%';
+    document.getElementById('cameraUpdate').innerText = new Date().toLocaleTimeString('id-ID');
+}
+
+function updatePresenceUI() {
+    const presence = environmentData.presence;
+    const status = presence ? 'Terdeteksi' : 'Tidak Terdeteksi';
+    const dotClass = presence ? 'w-2 h-2 rounded-full bg-zinc-900 animate-pulse' : 'w-2 h-2 rounded-full bg-zinc-300';
+    document.getElementById('presenceStatus').innerText = status;
+    document.getElementById('presenceDot').className = dotClass;
+    document.getElementById('presenceTime').innerText = new Date().toLocaleTimeString('id-ID');
+    document.getElementById('cameraPresence').innerText = status;
+}
+
+// ==================== TOPIC SETTINGS MODAL ====================
+function openTopicSettings(deviceId) {
+    currentTopicDevice = deviceId;
+    document.getElementById('topicDeviceName').innerText = deviceConfig[deviceId].name;
+    document.getElementById('deviceTopicSub').value = deviceTopics[deviceId]?.sub || '';
+    document.getElementById('deviceTopicPub').value = deviceTopics[deviceId]?.pub || '';
+    document.getElementById('topicModal').classList.add('show');
+}
+
+function closeTopicSettings() {
+    document.getElementById('topicModal').classList.remove('show');
+    currentTopicDevice = null;
+}
+
+function saveDeviceTopicSettings() {
+    if (!currentTopicDevice) return;
+
+    const subTopic = document.getElementById('deviceTopicSub').value;
+    const pubTopic = document.getElementById('deviceTopicPub').value;
+
+    deviceTopics[currentTopicDevice] = { sub: subTopic, pub: pubTopic };
+
+    if (mqttClient && mqttConnected && subTopic) {
+        mqttClient.subscribe(subTopic);
+        addLog(deviceConfig[currentTopicDevice].name, 'Topic updated & subscribed', 'User', 'text-blue-600');
+    }
+
+    closeTopicSettings();
+    alert('Topic settings untuk ' + deviceConfig[currentTopicDevice].name + ' disimpan!');
+}
+
+// ==================== NAVIGASI ====================
+function switchPage(pageId, element) {
+    const targetView = document.getElementById('view-' + pageId);
+    if (targetView?.dataset?.requiresConnection === 'true' && !mqttConnected) {
+        alert('Hubungkan MQTT terlebih dahulu untuk membuka halaman ini.');
+        return;
+    }
+    document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
+    if (targetView) targetView.classList.remove('hidden');
+
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    if (element) element.classList.add('active');
+
+    const titles = {
+        dashboard: 'Overview',
+        devices: 'Perangkat Terhubung',
+        sensors: 'Sensor',
+        automation: 'Automasi',
+        camera: 'Kamera',
+        analytics: 'Log Aktivitas',
+        mqtt: 'MQTT Configuration'
+    };
+    document.getElementById('pageTitle').innerText = titles[pageId] || 'Overview';
+
+    if (window.innerWidth < 768) {
+        document.getElementById('sidebar').classList.add('-translate-x-full');
+        document.getElementById('overlay').classList.add('hidden');
+    }
+}
+
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('-translate-x-full');
+    document.getElementById('overlay').classList.toggle('hidden');
+}
+
+// ==================== JAM & TANGGAL ====================
+setInterval(() => {
+    const now = new Date();
+    document.getElementById('clock').innerText = now.toLocaleTimeString('id-ID', { hour12: false });
+    document.getElementById('date').innerText = now.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'short' });
+}, 1000);
+
+// ==================== LOGGING ====================
+function addLog(device, activity, trigger, colorClass) {
+    const now = new Date();
+    const tanggal = now.toLocaleDateString('id-ID');
+    const waktu = now.toLocaleTimeString('id-ID');
+    const tbody = document.getElementById('logBody');
+
+    const row = `
+        <tr class="hover:bg-zinc-50 transition-colors animate-[fadeIn_0.5s]">
+            <td class="px-6 py-3 font-mono text-xs text-zinc-500">${tanggal}</td>
+            <td class="px-6 py-3 font-mono text-xs text-zinc-500">${waktu}</td>
+            <td class="px-6 py-3 font-bold">${device}</td>
+            <td class="px-6 py-3 ${colorClass}">${activity}</td>
+            <td class="px-6 py-3 text-xs uppercase tracking-wide text-zinc-400">${trigger}</td>
+        </tr>`;
+    tbody.insertAdjacentHTML('afterbegin', row);
+    if (tbody.children.length > 50) tbody.lastElementChild.remove();
+
+    logData.unshift({ tanggal, waktu, device, activity, trigger });
+    if (logData.length > 50) logData.pop();
+    updateEmptyLogState();
+}
+
+function clearLogs() {
+    document.getElementById('logBody').innerHTML = '';
+    logData = [];
+    updateEmptyLogState();
+}
+
+function updateEmptyLogState() {
+    const emptyLog = document.getElementById('emptyLog');
+    if (!emptyLog) return;
+    emptyLog.classList.toggle('hidden', logData.length > 0);
+}
+
+function exportLogsToExcel() {
+    const ws = XLSX.utils.json_to_sheet(logData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Logs");
+    XLSX.writeFile(wb, 'iotzy_logs.xlsx');
+}
+
+// ==================== KONTROL PERANGKAT ====================
+function toggleDeviceState(deviceId, isOn) {
+    deviceStates[deviceId] = isOn;
+    updateDeviceUI(deviceId);
+
+    const config = deviceConfig[deviceId];
+    const status = isOn ? 'Dinyalakan' : 'Dimatikan';
+    const color = isOn ? 'text-green-600' : 'text-zinc-500';
+    addLog(config.name, status, 'Manual', color);
+
+    // Publish to MQTT
+    if (deviceTopics[deviceId] && deviceTopics[deviceId].pub) {
+        publishMQTT(deviceTopics[deviceId].pub, { state: isOn ? 1 : 0 });
+    }
+}
+
+function updateDeviceUI(deviceId) {
+    const isOn = deviceStates[deviceId];
+    const indicator = document.getElementById(`indicator-${deviceId}`);
+    const label = document.getElementById(`label-${deviceId}`);
+
+    if (indicator && label) {
+        if (isOn) {
+            indicator.className = 'w-2 h-2 rounded-full bg-green-500 animate-pulse';
+            label.innerText = deviceId === 'kunci-pintu' ? 'Terbuka' : 'Aktif';
+            label.className = 'text-xs text-green-600 font-bold';
+        } else {
+            indicator.className = 'w-2 h-2 rounded-full bg-zinc-300';
+            label.innerText = deviceId === 'kunci-pintu' ? 'Terkunci' : 'Mati';
+            label.className = 'text-xs text-zinc-400';
+        }
+    }
+
+    renderQuickControls();
+}
+
+function updateConnectionUI() {
+    const requiresConnection = document.querySelectorAll('[data-requires-connection=\"true\"]');
+    requiresConnection.forEach(section => {
+        if (mqttConnected) {
+            section.classList.remove('hidden');
+        } else {
+            section.classList.add('hidden');
+        }
+    });
+
+    document.querySelectorAll('.nav-item').forEach(item => {
+        const target = item.getAttribute('onclick') || '';
+        const requires = ['sensors', 'automation', 'camera', 'analytics']
+            .some(page => target.includes(`'${page}'`));
+        if (requires && !mqttConnected) {
+            item.classList.add('opacity-50', 'pointer-events-none');
+        } else {
+            item.classList.remove('opacity-50', 'pointer-events-none');
+        }
+    });
+
+    const deviceInputs = document.querySelectorAll('#view-devices input[type=\"checkbox\"]');
+    deviceInputs.forEach(input => {
+        input.disabled = !mqttConnected || input.id === 'device-kamera-';
+        const card = input.closest('.card-surface');
+        if (!card) return;
+        if (!mqttConnected) {
+            card.classList.add('disabled-card');
+        } else {
+            card.classList.remove('disabled-card');
+        }
+    });
+
+    const quickControls = document.getElementById('quickControlsContainer');
+    if (quickControls) {
+        if (!mqttConnected) {
+            quickControls.classList.add('disabled-card');
+        } else {
+            quickControls.classList.remove('disabled-card');
+        }
+    }
+}
+
+// ==================== KONTROL CEPAT ====================
+function renderQuickControls() {
+    const container = document.getElementById('quickControlsContainer');
+    container.innerHTML = '';
+
+    quickControlDevices.forEach(deviceId => {
+        const config = deviceConfig[deviceId];
+        const isOn = deviceStates[deviceId];
+
+        const iconBg = isOn ? 'bg-zinc-900' : 'bg-white';
+        const iconText = isOn ? 'text-white' : 'text-zinc-500';
+        const btnBg = isOn ? 'bg-zinc-900' : 'bg-zinc-200';
+        const knobTranslate = isOn ? 'translate-x-5' : 'translate-x-0';
+        const statusText = isOn ? 'Aktif' : 'Mati';
+        const statusColor = isOn ? 'text-zinc-900' : 'text-zinc-400';
+
+        let clickAction = `toggleDeviceState('${deviceId}', !deviceStates['${deviceId}'])`;
+        if (deviceId === 'kamera-') clickAction = 'toggleCamera()';
+
+        const html = `
+            <div onclick="${clickAction}" class="cursor-pointer group flex items-center justify-between p-4 rounded-xl border border-zinc-200 hover:border-zinc-300 transition-all bg-zinc-50">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full ${iconBg} flex items-center justify-center ${iconText} shadow-sm transition-colors">
+                        <i class="fas ${config.icon}"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold">${config.name}</p>
+                        <p class="text-[10px] ${statusColor} uppercase font-bold">${statusText}</p>
+                    </div>
+                </div>
+                <div class="w-10 h-5 ${btnBg} rounded-full relative transition-colors">
+                    <div class="w-3 h-3 bg-white rounded-full absolute top-1 left-1 transition-transform ${knobTranslate}"></div>
+                </div>
+            </div>`;
+        container.insertAdjacentHTML('beforeend', html);
+    });
+}
+
+function openQuickControlSettings() {
+    document.getElementById('quickControlModal').classList.add('show');
+    document.querySelectorAll('.quick-control-checkbox').forEach(cb => {
+        cb.checked = quickControlDevices.includes(cb.value);
+    });
+}
+
+function closeQuickControlSettings() {
+    document.getElementById('quickControlModal').classList.remove('show');
+}
+
+function updateQuickControlSelection() {
+    const checked = document.querySelectorAll('.quick-control-checkbox:checked');
+    if (checked.length > 2) {
+        const all = document.querySelectorAll('.quick-control-checkbox');
+        for (let cb of all) {
+            if (cb.checked && !quickControlDevices.includes(cb.value)) {
+                const oldest = Array.from(all).find(c => c.checked && c !== cb);
+                if (oldest) oldest.checked = false;
+                break;
+            }
+        }
+    }
+}
+
+function saveQuickControlSettings() {
+    const selected = Array.from(document.querySelectorAll('.quick-control-checkbox:checked'))
+        .map(cb => cb.value);
+
+    if (selected.length !== 2) {
+        alert('Pilih tepat 2 perangkat!');
+        return;
+    }
+
+    quickControlDevices = selected;
+    renderQuickControls();
+    closeQuickControlSettings();
+    addLog('Sistem', `Quick Control diubah: ${selected.map(d => deviceConfig[d].name).join(', ')}`, 'User', 'text-blue-600');
+}
+
+// ==================== DASHBOARD SETTINGS ====================
+const DASHBOARD_WIDGETS = ['temperature', 'system', 'camera', 'quick-controls'];
+
+function applyDashboardWidgets(selected) {
+    const selectedSet = new Set(selected);
+    document.querySelectorAll('[data-dashboard-widget]').forEach(el => {
+        const key = el.getAttribute('data-dashboard-widget');
+        if (selectedSet.has(key)) {
+            el.classList.remove('hidden');
+        } else {
+            el.classList.add('hidden');
+        }
+    });
+}
+
+function loadDashboardSettings() {
+    const stored = localStorage.getItem('iotzy_dashboard_widgets');
+    const selected = stored ? JSON.parse(stored) : DASHBOARD_WIDGETS;
+    applyDashboardWidgets(selected);
+}
+
+function openDashboardSettings() {
+    document.getElementById('dashboardSettingsModal').classList.add('show');
+    const stored = localStorage.getItem('iotzy_dashboard_widgets');
+    const selected = stored ? JSON.parse(stored) : DASHBOARD_WIDGETS;
+    document.querySelectorAll('.dashboard-widget-checkbox').forEach(cb => {
+        cb.checked = selected.includes(cb.value);
+    });
+}
+
+function closeDashboardSettings() {
+    document.getElementById('dashboardSettingsModal').classList.remove('show');
+}
+
+function saveDashboardSettings() {
+    const selected = Array.from(document.querySelectorAll('.dashboard-widget-checkbox:checked'))
+        .map(cb => cb.value);
+    if (selected.length === 0) {
+        alert('Pilih minimal 1 widget.');
+        return;
+    }
+    localStorage.setItem('iotzy_dashboard_widgets', JSON.stringify(selected));
+    applyDashboardWidgets(selected);
+    closeDashboardSettings();
+}
+
+// ==================== KAMERA ====================
+let stream = null;
+
+function updateCameraElements(isOn) {
+    const sets = [
+        { video: 'camera', placeholder: 'camPlaceholder', badge: 'camTag' },
+        { video: 'cameraFocus', placeholder: 'cameraFocusPlaceholder', badge: 'cameraFocusTag' }
+    ];
+
+    sets.forEach(({ video, placeholder, badge }) => {
+        const videoEl = document.getElementById(video);
+        const placeholderEl = document.getElementById(placeholder);
+        const badgeEl = document.getElementById(badge);
+        if (!videoEl || !placeholderEl || !badgeEl) return;
+        if (isOn) {
+            videoEl.srcObject = stream;
+            videoEl.classList.remove('hidden');
+            placeholderEl.classList.add('hidden');
+            badgeEl.classList.remove('hidden');
+        } else {
+            videoEl.classList.add('hidden');
+            placeholderEl.classList.remove('hidden');
+            badgeEl.classList.add('hidden');
+        }
+    });
+}
+
+function updateOnlineStatus(isOnline) {
+    const sysText = document.getElementById('systemStatusText');
+    const sysIcon = document.getElementById('systemStatusIcon');
+    const sysUptime = document.getElementById('systemUptime');
+    const sideText = document.getElementById('sidebarText');
+    const sideDot = document.getElementById('sidebarDot');
+
+    if (isOnline) {
+        sysText.innerText = "ONLINE";
+        sysIcon.className = "p-2 bg-zinc-900 text-white rounded-lg animate-pulse transition-all";
+        sysUptime.innerText = "Monitoring Aktif";
+        sideText.innerText = "Online";
+        sideText.className = "text-zinc-900 font-bold";
+        sideDot.className = "w-2 h-2 rounded-full bg-zinc-900 animate-pulse";
+    } else {
+        sysText.innerText = "STANDBY";
+        sysIcon.className = "p-2 bg-zinc-100 text-zinc-500 rounded-lg transition-all";
+        sysUptime.innerText = "Menunggu Koneksi...";
+        sideText.innerText = "Offline";
+        sideText.className = "text-zinc-400";
+        sideDot.className = "w-2 h-2 rounded-full bg-zinc-400";
+    }
+}
+
+async function toggleCamera() {
+    if (!stream) {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            updateCameraElements(true);
+
+            deviceStates['kamera-'] = true;
+            updateDeviceUI('kamera-');
+            document.getElementById('device-kamera-').checked = true;
+
+            addLog('Kamera', 'Live Stream Started', 'User', 'text-green-600');
+        } catch (err) {
+            alert("Tidak dapat mengakses kamera.");
+        }
+    } else {
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        updateCameraElements(false);
+
+        deviceStates['kamera-'] = false;
+        updateDeviceUI('kamera-');
+        document.getElementById('device-kamera-').checked = false;
+
+        addLog('Kamera', 'Stream Stopped', 'User', 'text-zinc-500');
+    }
+}
+
+function toggleCameraFocus() {
+    toggleCamera();
+}
+
+// ==================== AUTOMASI ====================
+function toggleAutomation(type, isEnabled) {
+    automationStates[type] = isEnabled;
+    const names = { lamp: 'Lampu Otomatis', fan: 'Kipas Otomatis', lock: 'Auto-Lock' };
+    addLog(names[type], isEnabled ? 'Diaktifkan' : 'Dinonaktifkan', 'User', 'text-blue-600');
+}
+
+function checkAutomations() {
+    const lampOnThreshold = parseFloat(document.getElementById('lampOnThreshold')?.value || '0.35');
+    const lampOffThreshold = parseFloat(document.getElementById('lampOffThreshold')?.value || '0.5');
+
+    if (automationStates.lamp && environmentData.brightness !== null) {
+        if (environmentData.brightness < lampOnThreshold && lastLampAction !== 'on') {
+            if (!deviceStates['lampu-utama']) {
+                deviceStates['lampu-utama'] = true;
+                document.getElementById('device-lampu-utama').checked = true;
+                updateDeviceUI('lampu-utama');
+                addLog('Lampu Utama', 'Otomatis NYALA (gelap)', 'Kamera', 'text-white');
+
+                if (deviceTopics['lampu-utama']?.pub) {
+                    publishMQTT(deviceTopics['lampu-utama'].pub, { state: 1 });
+                }
+            }
+            lastLampAction = 'on';
+        }
+        else if (environmentData.brightness > lampOffThreshold && lastLampAction !== 'off') {
+            if (deviceStates['lampu-utama']) {
+                deviceStates['lampu-utama'] = false;
+                document.getElementById('device-lampu-utama').checked = false;
+                updateDeviceUI('lampu-utama');
+                addLog('Lampu Utama', 'Otomatis MATI (terang)', 'Kamera', 'text-zinc-400');
+
+                if (deviceTopics['lampu-utama']?.pub) {
+                    publishMQTT(deviceTopics['lampu-utama'].pub, { state: 0 });
+                }
+            }
+            lastLampAction = 'off';
+        }
+    }
+
+    // Kipas
+    if (automationStates.fan && environmentData.temperature !== null) {
+        if (environmentData.temperature > 26.5 && !deviceStates['kipas-ruangan']) {
+            deviceStates['kipas-ruangan'] = true;
+            document.getElementById('device-kipas-ruangan').checked = true;
+            updateDeviceUI('kipas-ruangan');
+            addLog('Kipas Ruangan', 'Otomatis NYALA (panas)', 'Suhu', 'text-blue-600');
+            
+            if (deviceTopics['kipas-ruangan']?.pub) {
+                publishMQTT(deviceTopics['kipas-ruangan'].pub, { state: 1 });
+            }
+        }
+        else if (environmentData.temperature < 25 && deviceStates['kipas-ruangan']) {
+            deviceStates['kipas-ruangan'] = false;
+            document.getElementById('device-kipas-ruangan').checked = false;
+            updateDeviceUI('kipas-ruangan');
+            addLog('Kipas Ruangan', 'Otomatis MATI (normal)', 'Suhu', 'text-zinc-500');
+            
+            if (deviceTopics['kipas-ruangan']?.pub) {
+                publishMQTT(deviceTopics['kipas-ruangan'].pub, { state: 0 });
+            }
+        }
+    }
+
+    // Smart Lock
+    if (automationStates.lock && !environmentData.presence && deviceStates['kunci-pintu']) {
+        setTimeout(() => {
+            if (!environmentData.presence) {
+                deviceStates['kunci-pintu'] = false;
+                document.getElementById('device-kunci-pintu').checked = false;
+                updateDeviceUI('kunci-pintu');
+                addLog('Smart Lock', 'Otomatis TERKUNCI', 'Tidak ada orang', 'text-green-600');
+                
+                if (deviceTopics['kunci-pintu']?.pub) {
+                    publishMQTT(deviceTopics['kunci-pintu'].pub, { state: 0 });
+                }
+            }
+        }, 5000);
+    }
+}
+
+// ==================== GRAFIK DAYA ====================
+const ctx = document.getElementById('powerChart').getContext('2d');
+let dataPoints = Array(30).fill(20);
+
+function drawChart() {
+    const w = document.getElementById('powerChart').width;
+    const h = 80;
+    ctx.clearRect(0, 0, w, h);
+
+    let nextVal = dataPoints[dataPoints.length - 1] + (Math.random() * 10 - 5);
+    nextVal = Math.max(5, Math.min(70, nextVal));
+
+    if (deviceStates['kipas-ruangan']) nextVal += 20;
+    if (deviceStates['lampu-utama']) nextVal += 10;
+
+    dataPoints.push(nextVal);
+    dataPoints.shift();
+
+    ctx.beginPath();
+    ctx.moveTo(0, h - dataPoints[0]);
+    const step = w / (dataPoints.length - 1);
+    for (let i = 1; i < dataPoints.length; i++) {
+        ctx.lineTo(i * step, h - dataPoints[i]);
+    }
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.fillStyle = 'rgba(15,23,42,0.08)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(0, h - dataPoints[0]);
+    for (let i = 1; i < dataPoints.length; i++) {
+        ctx.lineTo(i * step, h - dataPoints[i]);
+    }
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+}
+
+setInterval(() => {
+    drawChart();
+}, 3000);
+
+// ==================== INIT ====================
+addLog('System', 'Dashboard dimulai', 'Boot', 'text-zinc-800');
+renderQuickControls();
+updateMQTTStatus(false);
+updateEmptyLogState();
+loadDashboardSettings();
+</script>
+</body>
+</html>
