@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IoTzy Control Panel</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>IoTzy Minimal Dashboard</h1>
+      <p>Kontrol backend Python (YOLO11) langsung dari web.</p>
+    </header>
+
+    <section class="card">
+      <h2>Vision Service</h2>
+      <p id="visionStatus">Status: memuat…</p>
+      <div class="row">
+        <button id="btnStartVision">Start Vision</button>
+        <button id="btnStopVision" class="danger">Stop Vision</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Konfigurasi Ringkas</h2>
+      <div class="row">
+        <input id="mqttHost" placeholder="MQTT host" />
+        <input id="mqttPort" type="number" placeholder="MQTT port" />
+        <button id="btnSaveConfig">Simpan</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Log Aktivitas</h2>
+      <ul id="activityList"></ul>
+    </section>
+  </main>
+
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/vision-controls.js"></script>
+  <script src="assets/js/automation-ui.js"></script>
+  <script src="assets/js/app.js"></script>
+</body>
+</html>

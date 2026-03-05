@@ -1,0 +1,9 @@
+:root { font-family: Inter, system-ui, sans-serif; color-scheme: light; }
+body { margin: 0; background: #f5f7fb; color: #111827; }
+.container { max-width: 900px; margin: 24px auto; padding: 0 16px; display: grid; gap: 16px; }
+.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+button { border: 1px solid #d1d5db; background: #111827; color: #fff; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+button.danger { background: #b91c1c; }
+input { border: 1px solid #d1d5db; border-radius: 8px; padding: 10px; }
+#activityList { margin: 0; padding-left: 20px; }
