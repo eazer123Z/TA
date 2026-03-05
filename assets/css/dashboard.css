@@ -1,0 +1,10 @@
+body{font-family:Inter,Arial,sans-serif;margin:0;background:#f4f6fb;color:#111}
+.app-shell{display:flex;min-height:100vh}.sidebar{width:250px;background:#111827;color:#fff;padding:16px;display:flex;flex-direction:column;gap:8px}
+.nav-item{padding:8px 10px;border-radius:8px;cursor:pointer;color:#d1d5db;text-decoration:none}.nav-item.active,.nav-item:hover{background:#1f2937;color:#fff}
+.main-content{flex:1;padding:16px}.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.view.hidden{display:none}.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin-bottom:12px}
+#devicesGrid,#sensorsGrid,#quickControlsContainer,#automationGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+.device-card,.sensor-card,.qc-item{border:1px solid #dbe1ef;border-radius:10px;padding:10px;background:#fafbff}
+.camera-wrap{position:relative;max-width:720px}.camera-wrap video,.camera-wrap canvas{width:100%;border-radius:8px}.camera-wrap canvas{position:absolute;left:0;top:0;pointer-events:none}
+.cv-hud{display:flex;gap:16px;margin-top:8px}.modal{position:fixed;inset:0;background:#0008;display:grid;place-items:center}.modal.hidden{display:none}.modal-inner{background:#fff;padding:16px;border-radius:12px;display:grid;gap:8px;min-width:280px}
+#toastContainer{position:fixed;right:14px;bottom:14px;display:grid;gap:8px}.toast{background:#111;color:#fff;padding:8px 10px;border-radius:8px}
