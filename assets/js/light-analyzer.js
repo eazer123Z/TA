@@ -1,16 +1,126 @@
-const lightAnalyzer = {
-  running:false, timer:null,
-  startAnalysis(video){
-    if (this.running) return; this.running = true;
-    const c = document.createElement('canvas'); const x = c.getContext('2d', {willReadFrequently:true});
-    this.timer = setInterval(() => {
-      if (!this.running || !video.videoWidth) return;
-      c.width = 64; c.height = 48; x.drawImage(video,0,0,c.width,c.height);
-      const data = x.getImageData(0,0,c.width,c.height).data;
-      let sum=0; for(let i=0;i<data.length;i+=4) sum += (0.2126*data[i]+0.7152*data[i+1]+0.0722*data[i+2]);
-      const brightness = Math.round(sum / (data.length/4));
-      document.getElementById('cvBrightness') && (document.getElementById('cvBrightness').textContent = String(brightness));
-    }, 500);
-  },
-  stopAnalysis(){ this.running=false; if(this.timer) clearInterval(this.timer); this.timer=null; }
-};
+// ==================== LIGHT ANALYZER MODULE ====================
+class LightAnalyzer {
+    constructor() {
+        this.canvas          = null;
+        this.ctx             = null;
+        this.isActive        = false;
+        this.interval        = null;
+        this.lastBrightness  = null;
+        this.lastCondition   = null;
+        this.videoElement    = null;
+        // Multi-callback support (same pattern as CVDetector)
+        this._callbacks = {
+            onLightChange:      [],
+            onBrightnessUpdate: []
+        };
+    }
+
+    startAnalysis(videoElement) {
+        if (this.isActive) this.stopAnalysis(); // restart cleanly if already running
+
+        this.videoElement = videoElement;
+        this.isActive     = true;
+
+        const size         = CV_CONFIG.light.sampleSize || 80;
+        this.canvas        = document.createElement('canvas');
+        this.canvas.width  = size;
+        this.canvas.height = size;
+        this.ctx           = this.canvas.getContext('2d', { willReadFrequently: true });
+
+        this._startInterval();
+        console.log('💡 Light analyzer dimulai');
+    }
+
+    _startInterval() {
+        if (this.interval) clearInterval(this.interval);
+        const ms      = CV_CONFIG.light.analysisInterval || 1000;
+        this.interval = setInterval(() => this._analyze(), ms);
+    }
+
+    /**
+     * Call this when CV_CONFIG.light.analysisInterval is changed at runtime
+     * so the new interval takes effect immediately.
+     */
+    restartWithNewInterval() {
+        if (!this.isActive) return;
+        this._startInterval();
+    }
+
+    stopAnalysis() {
+        if (this.interval) { clearInterval(this.interval); this.interval = null; }
+        this.isActive      = false;
+        this.lastCondition = null;
+        console.log('💡 Light analyzer dihentikan');
+    }
+
+    _analyze() {
+        const v = this.videoElement;
+        if (!v || v.readyState < 2 || v.paused || v.videoWidth < 1) return;
+        try {
+            const W = this.canvas.width;
+            const H = this.canvas.height;
+            this.ctx.drawImage(v, 0, 0, W, H);
+            const px    = this.ctx.getImageData(0, 0, W, H).data;
+            let total   = 0;
+            let count   = 0;
+            // Sample every 4th pixel (step 16 bytes = 4 channels × 4 pixels) for performance
+            for (let i = 0; i < px.length; i += 16) {
+                total += (0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2]) / 255;
+                count++;
+            }
+            const brightness = count ? total / count : 0;
+            const bright     = CV_CONFIG.light.brightThreshold;
+            const dark       = CV_CONFIG.light.darkThreshold;
+            const cond       = brightness > bright ? 'bright'
+                             : brightness < dark   ? 'dark'
+                             : 'normal';
+
+            this._emit('onBrightnessUpdate', brightness, cond);
+
+            if (cond !== this.lastCondition) {
+                this.lastCondition = cond;
+                this._emit('onLightChange', cond, brightness);
+            }
+            this.lastBrightness = brightness;
+        } catch (_) {}
+    }
+
+    // ── Emit helpers (multi-callback, consistent with CVDetector) ────────────
+    _emit(event, ...args) {
+        const list = this._callbacks[event];
+        if (!list) return;
+        list.forEach(fn => {
+            try { fn(...args); } catch (e) { console.warn('LightAnalyzer CB error', event, e); }
+        });
+    }
+
+    /**
+     * setCallbacks — MERGES new callbacks instead of replacing.
+     * Uses cb._tag to allow replacing a specific group (same as CVDetector).
+     */
+    setCallbacks(cb) {
+        const addOrReplace = (key, fn) => {
+            if (typeof fn !== 'function') return;
+            const tag  = cb._tag || null;
+            const list = this._callbacks[key] || (this._callbacks[key] = []);
+            if (tag) {
+                const tagged = fn;
+                tagged._tag  = tag;
+                const idx    = list.findIndex(f => f._tag === tag);
+                if (idx >= 0) list[idx] = tagged;
+                else          list.push(tagged);
+            } else {
+                list.push(fn);
+            }
+        };
+        if (cb.onLightChange)      addOrReplace('onLightChange',      cb.onLightChange);
+        if (cb.onBrightnessUpdate) addOrReplace('onBrightnessUpdate', cb.onBrightnessUpdate);
+    }
+
+    getBrightness() { return this.lastBrightness; }
+    getCondition()  { return this.lastCondition; }
+
+    destroy() { this.stopAnalysis(); }
+}
+
+const lightAnalyzer = new LightAnalyzer();
